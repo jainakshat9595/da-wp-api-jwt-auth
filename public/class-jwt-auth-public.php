@@ -14,7 +14,8 @@ use Tmeister\Firebase\JWT\Key;
  * @author     Enrique Chavez <noone@tmeister.net>
  * @since      1.0.0
  */
-class Jwt_Auth_Public {
+class Jwt_Auth_Public
+{
 	/**
 	 * The ID of this plugin.
 	 *
@@ -78,38 +79,50 @@ class Jwt_Auth_Public {
 	 * @since    1.0.0
 	 *
 	 */
-	public function __construct( string $plugin_name, string $version ) {
+	public function __construct(string $plugin_name, string $version)
+	{
 		$this->plugin_name = $plugin_name;
 		$this->version     = $version;
-		$this->namespace   = $this->plugin_name . '/v' . intval( $this->version );
+		$this->namespace   = $this->plugin_name . '/v' . intval($this->version);
 	}
 
 	/**
 	 * Add the endpoints to the API
 	 */
-	public function add_api_routes() {
-		register_rest_route( $this->namespace, 'token', [
+	public function add_api_routes()
+	{
+		register_rest_route($this->namespace, 'token', [
 			'methods'             => 'POST',
-			'callback'            => [ $this, 'generate_token' ],
+			'callback'            => [$this, 'generate_token'],
 			'permission_callback' => '__return_true',
-		] );
+		]);
 
-		register_rest_route( $this->namespace, 'token/validate', [
+		// Register new route for authenticate google oauth2 response
+		register_rest_route($this->namespace, 'token-google', [
 			'methods'             => 'POST',
-			'callback'            => [ $this, 'validate_token' ],
+			'callback'            => [$this, 'generate_token_google'],
 			'permission_callback' => '__return_true',
-		] );
+		]);
+
+		register_rest_route($this->namespace, 'token/validate', [
+			'methods'             => 'POST',
+			'callback'            => [$this, 'validate_token'],
+			'permission_callback' => '__return_true',
+		]);
 	}
 
 	/**
 	 * Add CORs support to the request.
 	 */
-	public function add_cors_support() {
-		$enable_cors = defined( 'JWT_AUTH_CORS_ENABLE' ) && JWT_AUTH_CORS_ENABLE;
-		if ( $enable_cors ) {
-			$headers = apply_filters( 'jwt_auth_cors_allow_headers',
-				'Access-Control-Allow-Headers, Content-Type, Authorization' );
-			header( sprintf( 'Access-Control-Allow-Headers: %s', $headers ) );
+	public function add_cors_support()
+	{
+		$enable_cors = defined('JWT_AUTH_CORS_ENABLE') && JWT_AUTH_CORS_ENABLE;
+		if ($enable_cors) {
+			$headers = apply_filters(
+				'jwt_auth_cors_allow_headers',
+				'Access-Control-Allow-Headers, Content-Type, Authorization'
+			);
+			header(sprintf('Access-Control-Allow-Headers: %s', $headers));
 		}
 	}
 
@@ -120,31 +133,32 @@ class Jwt_Auth_Public {
 	 *
 	 * @return mixed|WP_Error|null
 	 */
-	public function generate_token( WP_REST_Request $request ) {
-		$secret_key = defined( 'JWT_AUTH_SECRET_KEY' ) ? JWT_AUTH_SECRET_KEY : false;
-		$username   = $request->get_param( 'username' );
-		$password   = $request->get_param( 'password' );
+	public function generate_token(WP_REST_Request $request)
+	{
+		$secret_key = defined('JWT_AUTH_SECRET_KEY') ? JWT_AUTH_SECRET_KEY : false;
+		$username   = $request->get_param('username');
+		$password   = $request->get_param('password');
 
 		/** First thing, check the secret key if not exist return an error*/
-		if ( ! $secret_key ) {
+		if (!$secret_key) {
 			return new WP_Error(
 				'jwt_auth_bad_config',
-				__( 'JWT is not configured properly, please contact the admin', 'wp-api-jwt-auth' ),
+				__('JWT is not configured properly, please contact the admin', 'wp-api-jwt-auth'),
 				[
 					'status' => 403,
 				]
 			);
 		}
 		/** Try to authenticate the user with the passed credentials*/
-		$user = wp_authenticate( $username, $password );
+		$user = wp_authenticate($username, $password);
 
 		/** If the authentication fails return an error*/
-		if ( is_wp_error( $user ) ) {
+		if (is_wp_error($user)) {
 			$error_code = $user->get_error_code();
 
 			return new WP_Error(
 				'[jwt_auth] ' . $error_code,
-				$user->get_error_message( $error_code ),
+				$user->get_error_message($error_code),
 				[
 					'status' => 403,
 				]
@@ -153,11 +167,11 @@ class Jwt_Auth_Public {
 
 		/** Valid credentials, the user exists create the according Token */
 		$issuedAt  = time();
-		$notBefore = apply_filters( 'jwt_auth_not_before', $issuedAt, $issuedAt );
-		$expire    = apply_filters( 'jwt_auth_expire', $issuedAt + ( DAY_IN_SECONDS * 7 ), $issuedAt );
+		$notBefore = apply_filters('jwt_auth_not_before', $issuedAt, $issuedAt);
+		$expire    = apply_filters('jwt_auth_expire', $issuedAt + (DAY_IN_SECONDS * 7), $issuedAt);
 
 		$token = [
-			'iss'  => get_bloginfo( 'url' ),
+			'iss'  => get_bloginfo('url'),
 			'iat'  => $issuedAt,
 			'nbf'  => $notBefore,
 			'exp'  => $expire,
@@ -171,11 +185,13 @@ class Jwt_Auth_Public {
 		/** Let the user modify the token data before the sign. */
 		$algorithm = $this->get_algorithm();
 
-		if ( $algorithm === false ) {
+		if ($algorithm === false) {
 			return new WP_Error(
 				'jwt_auth_unsupported_algorithm',
-				__( 'Algorithm not supported, see https://www.rfc-editor.org/rfc/rfc7518#section-3',
-					'wp-api-jwt-auth' ),
+				__(
+					'Algorithm not supported, see https://www.rfc-editor.org/rfc/rfc7518#section-3',
+					'wp-api-jwt-auth'
+				),
 				[
 					'status' => 403,
 				]
@@ -183,7 +199,7 @@ class Jwt_Auth_Public {
 		}
 
 		$token = JWT::encode(
-			apply_filters( 'jwt_auth_token_before_sign', $token, $user ),
+			apply_filters('jwt_auth_token_before_sign', $token, $user),
 			$secret_key,
 			$algorithm
 		);
@@ -197,7 +213,168 @@ class Jwt_Auth_Public {
 		];
 
 		/** Let the user modify the data before send it back */
-		return apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
+		return apply_filters('jwt_auth_token_before_dispatch', $data, $user);
+	}
+
+	/**
+	 * Get the type and token in the request body and generate a JWT after google oauth2 authentication
+	 *
+	 * @param WP_REST_Request $request
+	 *
+	 * @return mixed|WP_Error|null
+	 */
+	public function generate_token_google(WP_REST_Request $request)
+	{
+
+		global $wpdb;
+
+		$secret_key = defined('JWT_AUTH_SECRET_KEY') ? JWT_AUTH_SECRET_KEY : false;
+		$hash = $request->get_param('hash');
+
+		/** First thing, check the secret key if not exist return an error*/
+		if (!$secret_key) {
+			return new WP_Error(
+				'jwt_auth_bad_config',
+				__('JWT is not configured properly, please contact the admin', 'wp-api-jwt-auth'),
+				[
+					'status' => 403,
+				]
+			);
+		}
+
+		// Check if hash is provided and not empty
+		if (!isset($hash) || empty($hash)) {
+			return new WP_Error(
+				'jwt_google_auth_bad_token',
+				__('Invalid hash', 'wp-api-jwt-auth'),
+				[
+					'status' => 403,
+				]
+			);
+		}
+
+		$hash_data = $wpdb->get_row(
+			$wpdb->prepare("
+					SELECT
+							*
+					FROM
+							wp_google_login_hash
+					WHERE
+							hash = %s
+					;
+			", [
+				$hash
+			]),
+			ARRAY_A
+		);
+
+		if (is_null($hash_data)) {
+			return new WP_Error(
+				'jwt_google_auth_bad_token',
+				__('Invalid hash', 'wp-api-jwt-auth'),
+				[
+					'status' => 403,
+				]
+			);
+		}
+
+		$user_id = null;
+
+		$google_data = json_decode($hash_data['google_data'], true);
+
+		if (is_null($hash_data['user_id']) || intval($hash_data['user_id']) === 0) {
+			$username = apply_filters('jwt_auth_generate_username', $google_data['first_name'], $google_data['last_name']);
+
+			$user_id = wp_create_user($username, wp_generate_password(), $google_data['email']);
+
+			if (is_wp_error($user_id)) {
+				$error_code = $user_id->get_error_code();
+
+				return new WP_Error(
+					'[jwt_auth] ' . $error_code,
+					$user_id->get_error_message($error_code),
+					[
+						'status' => 403,
+					]
+				);
+			}
+			apply_filters('jwt_auth_on_user_create', $user_id, $username, $google_data);
+			update_user_meta($user_id, 'email_verified', 'true');
+			apply_filters('jwt_auth_on_user_email_verify', $user_id);
+			update_user_meta($user_id, 'google_account_id', $google_data['google_account_id']);
+		} else if (intval($hash_data['email_verified']) === 0) {
+			$user_id = intval($hash_data['user_id']);
+			update_user_meta($user_id, 'email_verified', 'true');
+			apply_filters('jwt_auth_on_user_email_verify', $user_id);
+			update_user_meta($user_id, 'google_account_id', $google_data['google_account_id']);
+		} else {
+			$user_id = intval($hash_data['user_id']);
+		}
+
+		$user = get_user_by('id', $user_id);
+
+		if (is_wp_error($user) || is_null($user_id)) {
+			$error_code = $user->get_error_code();
+
+			return new WP_Error(
+				'[jwt_auth] ' . $error_code,
+				$user->get_error_message($error_code),
+				[
+					'status' => 403,
+				]
+			);
+		}
+
+		$wpdb->delete('wp_google_login_hash', ['user_id' => $user_id]);
+		$wpdb->delete('wp_google_login_hash', ['hash' => $hash]);
+
+		// Create the according Token
+		$issuedAt  = time();
+		$notBefore = apply_filters('jwt_auth_not_before', $issuedAt, $issuedAt);
+		$expire    = apply_filters('jwt_auth_expire', $issuedAt + (DAY_IN_SECONDS * 7), $issuedAt);
+
+		$token = [
+			'iss'  => get_bloginfo('url'),
+			'iat'  => $issuedAt,
+			'nbf'  => $notBefore,
+			'exp'  => $expire,
+			'data' => [
+				'user' => [
+					'id' => $user->ID,
+				],
+			],
+		];
+
+		$algorithm = $this->get_algorithm();
+		if ($algorithm === false) {
+			return new WP_Error(
+				'jwt_auth_unsupported_algorithm',
+				__(
+					'Algorithm not supported, see https://www.rfc-editor.org/rfc/rfc7518#section-3',
+					'wp-api-jwt-auth'
+				),
+				[
+					'status' => 403,
+				]
+			);
+		}
+
+		$token = JWT::encode(
+			apply_filters('jwt_auth_token_before_sign', $token, $user),
+			$secret_key,
+			$algorithm
+		);
+
+
+		$data = [
+			'token'             => $token,
+			'user_email'        => $user->user_email,
+			'user_nicename'     => $user->user_nicename,
+			'user_display_name' => $user->display_name,
+		];
+
+		/** Let the user modify the data before send it back */
+		return apply_filters('jwt_auth_token_before_dispatch', $data, $user);
 	}
 
 	/**
@@ -208,7 +385,8 @@ class Jwt_Auth_Public {
 	 *
 	 * @return (int|bool)
 	 */
-	public function determine_current_user( $user ) {
+	public function determine_current_user($user)
+	{
 		/**
 		 * This hook only should run on the REST API requests to determine
 		 * if the user in the Token (if any) is valid, for any other
@@ -217,12 +395,14 @@ class Jwt_Auth_Public {
 		 * @since 1.2.3
 		 **/
 		$rest_api_slug = rest_get_url_prefix();
-		$requested_url = sanitize_url( $_SERVER['REQUEST_URI'] );
+		$requested_url = sanitize_url($_SERVER['REQUEST_URI']);
 		// if we already have a valid user, or we have an invalid url, don't attempt to validate token
-		$is_rest_request_constant_defined = defined( 'REST_REQUEST' ) && REST_REQUEST;
-		$is_rest_request                  = $is_rest_request_constant_defined || strpos( $requested_url,
-				$rest_api_slug );
-		if ( $is_rest_request && $user ) {
+		$is_rest_request_constant_defined = defined('REST_REQUEST') && REST_REQUEST;
+		$is_rest_request                  = $is_rest_request_constant_defined || strpos(
+			$requested_url,
+			$rest_api_slug
+		);
+		if ($is_rest_request && $user) {
 			return $user;
 		}
 
@@ -230,38 +410,38 @@ class Jwt_Auth_Public {
 		 * if the request URI is for validate the token don't do anything,
 		 * this avoids double calls.
 		 */
-		$validate_uri = strpos( $requested_url, 'token/validate' );
-		if ( $validate_uri > 0 ) {
+		$validate_uri = strpos($requested_url, 'token/validate');
+		if ($validate_uri > 0) {
 			return $user;
 		}
 
 		/**
 		 * We still need to get the Authorization header and check for the token.
 		 */
-		$auth_header = ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['HTTP_AUTHORIZATION'] ) : false;
+		$auth_header = !empty($_SERVER['HTTP_AUTHORIZATION']) ? sanitize_text_field($_SERVER['HTTP_AUTHORIZATION']) : false;
 		/* Double check for different auth header string (server dependent) */
-		if ( ! $auth_header ) {
-			$auth_header = ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) : false;
+		if (!$auth_header) {
+			$auth_header = !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? sanitize_text_field($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) : false;
 		}
 
-		if ( ! $auth_header ) {
+		if (!$auth_header) {
 			return $user;
 		}
 
 		/**
 		 * Check if the auth header is not bearer, if so, return the user
 		 */
-		if ( strpos( $auth_header, 'Bearer' ) !== 0 ) {
+		if (strpos($auth_header, 'Bearer') !== 0) {
 			return $user;
 		}
 
 		/*
 		 * Check the token from the headers.
 		 */
-		$token = $this->validate_token( new WP_REST_Request(), $auth_header );
+		$token = $this->validate_token(new WP_REST_Request(), $auth_header);
 
-		if ( is_wp_error( $token ) ) {
-			if ( $token->get_error_code() != 'jwt_auth_no_auth_header' ) {
+		if (is_wp_error($token)) {
+			if ($token->get_error_code() != 'jwt_auth_no_auth_header') {
 				/** If there is an error, store it to show it after see rest_pre_dispatch */
 				$this->jwt_error = $token;
 			}
@@ -286,7 +466,8 @@ class Jwt_Auth_Public {
 	 *
 	 * @return WP_Error | Object | Array
 	 */
-	public function validate_token( WP_REST_Request $request, $custom_token = false ) {
+	public function validate_token(WP_REST_Request $request, $custom_token = false)
+	{
 		/*
 		 * Looking for the Authorization header
 		 *
@@ -301,9 +482,9 @@ class Jwt_Auth_Public {
 		 * @see https://core.trac.wordpress.org/ticket/47077
 		 */
 
-		$auth_header = $custom_token ?: $request->get_header( 'Authorization' );
+		$auth_header = $custom_token ?: $request->get_header('Authorization');
 
-		if ( ! $auth_header ) {
+		if (!$auth_header) {
 			return new WP_Error(
 				'jwt_auth_no_auth_header',
 				'Authorization header not found.',
@@ -316,12 +497,12 @@ class Jwt_Auth_Public {
 		/*
 		 * Extract the authorization header
 		 */
-		[ $token ] = sscanf( $auth_header, 'Bearer %s' );
+		[$token] = sscanf($auth_header, 'Bearer %s');
 
 		/**
 		 * if the format is not valid return an error.
 		 */
-		if ( ! $token ) {
+		if (!$token) {
 			return new WP_Error(
 				'jwt_auth_bad_auth_header',
 				'Authorization header malformed.',
@@ -332,8 +513,8 @@ class Jwt_Auth_Public {
 		}
 
 		/** Get the Secret Key */
-		$secret_key = defined( 'JWT_AUTH_SECRET_KEY' ) ? JWT_AUTH_SECRET_KEY : false;
-		if ( ! $secret_key ) {
+		$secret_key = defined('JWT_AUTH_SECRET_KEY') ? JWT_AUTH_SECRET_KEY : false;
+		if (!$secret_key) {
 			return new WP_Error(
 				'jwt_auth_bad_config',
 				'JWT is not configured properly, please contact the admin',
@@ -346,21 +527,23 @@ class Jwt_Auth_Public {
 		/** Try to decode the token */
 		try {
 			$algorithm = $this->get_algorithm();
-			if ( $algorithm === false ) {
+			if ($algorithm === false) {
 				return new WP_Error(
 					'jwt_auth_unsupported_algorithm',
-					__( 'Algorithm not supported, see https://www.rfc-editor.org/rfc/rfc7518#section-3',
-						'wp-api-jwt-auth' ),
+					__(
+						'Algorithm not supported, see https://www.rfc-editor.org/rfc/rfc7518#section-3',
+						'wp-api-jwt-auth'
+					),
 					[
 						'status' => 403,
 					]
 				);
 			}
 
-			$token = JWT::decode( $token, new Key( $secret_key, $algorithm ) );
+			$token = JWT::decode($token, new Key($secret_key, $algorithm));
 
 			/** The Token is decoded now validate the iss */
-			if ( $token->iss !== get_bloginfo( 'url' ) ) {
+			if ($token->iss !== get_bloginfo('url')) {
 				/** The iss do not match, return error */
 				return new WP_Error(
 					'jwt_auth_bad_iss',
@@ -372,7 +555,7 @@ class Jwt_Auth_Public {
 			}
 
 			/** So far so good, validate the user id in the token */
-			if ( ! isset( $token->data->user->id ) ) {
+			if (!isset($token->data->user->id)) {
 				/** No user id in the token, abort!! */
 				return new WP_Error(
 					'jwt_auth_bad_request',
@@ -384,7 +567,7 @@ class Jwt_Auth_Public {
 			}
 
 			/** Everything looks good return the decoded token if we are using the custom_token */
-			if ( $custom_token ) {
+			if ($custom_token) {
 				return $token;
 			}
 
@@ -395,7 +578,7 @@ class Jwt_Auth_Public {
 					'status' => 200,
 				],
 			];
-		} catch ( Exception $e ) {
+		} catch (Exception $e) {
 			/** Something were wrong trying to decode the token, send back the error */
 			return new WP_Error(
 				'jwt_auth_invalid_token',
@@ -415,8 +598,9 @@ class Jwt_Auth_Public {
 	 *
 	 * @return mixed|WP_Error|null
 	 */
-	public function rest_pre_dispatch( $request ) {
-		if ( is_wp_error( $this->jwt_error ) ) {
+	public function rest_pre_dispatch($request)
+	{
+		if (is_wp_error($this->jwt_error)) {
 			return $this->jwt_error;
 		}
 
@@ -429,9 +613,10 @@ class Jwt_Auth_Public {
 	 *
 	 * @return false|mixed|null
 	 */
-	private function get_algorithm() {
-		$algorithm = apply_filters( 'jwt_auth_algorithm', 'HS256' );
-		if ( ! in_array( $algorithm, $this->supported_algorithms ) ) {
+	private function get_algorithm()
+	{
+		$algorithm = apply_filters('jwt_auth_algorithm', 'HS256');
+		if (!in_array($algorithm, $this->supported_algorithms)) {
 			return false;
 		}
 

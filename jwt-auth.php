@@ -8,16 +8,16 @@
  * registers the activation and deactivation functions, and defines a function
  * that starts the plugin.
  *
- * @link              https://enriquechavez.co
+ * @link              https://github.com/jainakshat9595
  * @since             1.0.0
  *
  * @wordpress-plugin
- * Plugin Name:       JWT Authentication for WP-API
- * Plugin URI:        https://enriquechavez.co
- * Description:       Extends the WP REST API using JSON Web Tokens Authentication as an authentication method.
+ * Plugin Name:       JWT Authentication for WP-API (DA Specific)
+ * Plugin URI:        https://github.com/jainakshat9595
+ * Description:       Extends the WP REST API using JSON Web Tokens Authentication as an authentication method (Specific to DarwinsArk project).
  * Version:           1.3.4
- * Author:            Enrique Chavez
- * Author URI:        https://enriquechavez.co
+ * Author:            Akshat Jain
+ * Author URI:        https://github.com/jainakshat9595
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       jwt-auth
@@ -25,7 +25,7 @@
  */
 
 // If this file is called directly, abort.
-if ( ! defined( 'WPINC' ) ) {
+if (!defined('WPINC')) {
 	die;
 }
 
@@ -33,7 +33,7 @@ if ( ! defined( 'WPINC' ) ) {
  * The core plugin class that is used to define internationalization,
  * admin-specific hooks, and public-facing site hooks.
  */
-require plugin_dir_path( __FILE__ ) . 'includes/class-jwt-auth.php';
+require plugin_dir_path(__FILE__) . 'includes/class-jwt-auth.php';
 
 /**
  * The CRON functionality of the plugin.
@@ -41,13 +41,13 @@ require plugin_dir_path( __FILE__ ) . 'includes/class-jwt-auth.php';
  * If the user agrees to share data, then we will send some data to the author of the plugin
  * to keep track opf the number of installations, the WP version and the PHP version used.
  */
-require plugin_dir_path( __FILE__ ) . 'admin/class-jwt-auth-cron.php';
+require plugin_dir_path(__FILE__) . 'admin/class-jwt-auth-cron.php';
 
 /**
  * Schedule an action if it's not already scheduled
  */
-if ( ! wp_next_scheduled( 'jwt_auth_share_data' ) ) {
-	wp_schedule_event( time(), 'weekly', 'jwt_auth_share_data' );
+if (!wp_next_scheduled('jwt_auth_share_data')) {
+	wp_schedule_event(time(), 'weekly', 'jwt_auth_share_data');
 }
 
 /**
@@ -55,26 +55,28 @@ if ( ! wp_next_scheduled( 'jwt_auth_share_data' ) ) {
  *
  * @return void
  */
-function jwt_auth_share_data() {
+function jwt_auth_share_data()
+{
 	Jwt_Auth_Cron::collect();
 }
 
 /**
  * Hook into the action that'll fire every week
  */
-add_action( 'jwt_auth_share_data', 'jwt_auth_share_data' );
+add_action('jwt_auth_share_data', 'jwt_auth_share_data');
 
 /**
  * This runs during plugin deactivation.
  */
-function deactivate_jwt_auth() {
+function deactivate_jwt_auth()
+{
 	Jwt_Auth_Cron::remove();
 }
 
 /**
  * Hook into the action that'll fire during plugin deactivation
  */
-register_deactivation_hook( __FILE__, 'deactivate_jwt_auth' );
+register_deactivation_hook(__FILE__, 'deactivate_jwt_auth');
 
 /**
  * Begins execution of the plugin.
@@ -85,7 +87,8 @@ register_deactivation_hook( __FILE__, 'deactivate_jwt_auth' );
  *
  * @since    1.0.0
  */
-function run_jwt_auth() {
+function run_jwt_auth()
+{
 	$plugin = new Jwt_Auth();
 	$plugin->run();
 }
